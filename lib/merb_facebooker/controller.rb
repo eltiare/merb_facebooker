@@ -117,6 +117,13 @@ module Facebooker
         else
           # same ol...
           facebook_sig_params = params.inject({}) do |collection, pair|
+            
+            # upcase the method value
+            # e.g. "get" becomes "GET"
+            if pair.first == 'fb_sig_request_method' 
+              pair.last.upcase!
+            end
+            
             collection[pair.first.sub(/^fb_sig_/, '')] = pair.last if pair.first[0,7] == 'fb_sig_'
             collection
           end
