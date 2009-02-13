@@ -38,7 +38,7 @@ namespace :facebooker do
     end
 
     task :config do
-     facebook_config = File.dirname(__FILE__) + '/../../../../../config/facebooker.yml'
+     facebook_config = File.join(Merb.root,"config","facebooker.yml")
      FACEBOOKER = YAML.load_file(facebook_config)[Merb.environment]
      @public_host_username = FACEBOOKER['tunnel']['public_host_username'] 
      @public_host = FACEBOOKER['tunnel']['public_host'] 

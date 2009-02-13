@@ -61,7 +61,7 @@ module Facebooker
       # from the facebook_params hash key
       #
       def secure_with_facebook_params!
-        debugger
+        # debugger
         return if !request_is_for_a_facebook_canvas? && !using_facebook_connect?
         
         if ['user', 'session_key'].all? {|element| facebook_params[element]}
