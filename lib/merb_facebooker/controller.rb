@@ -57,12 +57,12 @@ module Facebooker
       end
       
       #
-      # If the request is made from a facebook canvas, then it checks for the session key and the user
-      # from the facebook_params hash key
+      # If the request is made from a facebook canvas or facebook iframe, then it checks for the session key and the user
+      # from the facebook_params hash key, and sets a cookie for the added facebook params to handle iframe applications.
       #
       def secure_with_facebook_params!
-        # debugger
-        return if !request_is_for_a_facebook_canvas? && !using_facebook_connect?
+        return if !request_is_for_facebook_canvas_or_iframe? && !using_facebook_connect?
+        cookies["#{Facebooker::Session.api_key}_added"] = facebook_params['added']
         
         if ['user', 'session_key'].all? {|element| facebook_params[element]}
           @facebook_session = new_facebook_session
@@ -87,7 +87,7 @@ module Facebooker
       end
       
       def capture_facebook_friends_if_available!
-        return unless request_is_for_a_facebook_canvas?
+        return unless request_is_for_facebook_canvas_or_iframe?
         if friends = facebook_params['friends']
           facebook_session.user.friends = friends.map do |friend_uid|
             User.new(friend_uid, facebook_session)
@@ -186,8 +186,16 @@ module Facebooker
         "<fb:redirect url=\"#{url}\" />"
       end
       
+      def request_is_for_facebook_canvas_or_iframe?
+        request_is_for_a_facebook_canvas? || request_is_for_a_facebook_iframe?
+      end
+      
       def request_is_for_a_facebook_canvas?
         !params['fb_sig_in_canvas'].blank?
+      end
+      
+      def request_is_for_a_facebook_iframe?
+        !params['fb_sig_in_iframe'].blank?
       end
       
       def using_facebook_connect?
