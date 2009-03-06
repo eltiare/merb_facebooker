@@ -211,11 +211,11 @@ module Facebooker
       end
       
       def application_is_installed?
-        facebook_params['added']
+        params[:format] == 'xml' || facebook_params['added']
       end
       
       def ensure_authenticated_to_facebook
-        set_facebook_session || create_new_facebook_session_and_redirect!
+        params[:format] == 'xml' || set_facebook_session || create_new_facebook_session_and_redirect!
       end
       
       def ensure_application_is_installed_by_facebook_user
