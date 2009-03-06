@@ -230,6 +230,10 @@ module Facebooker
         # Creates a filter which reqires a user to have already authenticated to
         # Facebook before executing actions.  Accepts the same optional options hash which
         # before_filter and after_filter accept.
+        def application_is_installed?(options ={})
+          before :application_is_installed?, options
+        end
+        
         def ensure_authenticated_to_facebook(options = {})
           before :ensure_authenticated_to_facebook, options
         end
