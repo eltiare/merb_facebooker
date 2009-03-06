@@ -62,7 +62,15 @@ module Facebooker
       #
       def secure_with_facebook_params!
         return if !request_is_for_facebook_canvas_or_iframe? && !using_facebook_connect?
-        cookies["#{Facebooker::Session.api_key}_added"] = facebook_params['added']
+
+        # Really ugly brute force attempt to save session cookies in iframe on safari when redirecting
+        key = Facebooker::Session.api_key
+        cookies["#{key}_added"] = facebook_params['added']
+        cookies["#{key}_session_key"] = verified_facebook_params['session_key']
+        cookies["#{key}_user"] = verified_facebook_params['user']
+        cookies["#{key}_ss"] = facebook_params['ss']        
+        cookies["#{key}_expires"] = params['fb_sig_expires']
+        cookies["#{key}"] = params['fb_sig']
         
         if ['user', 'session_key'].all? {|element| facebook_params[element]}
           @facebook_session = new_facebook_session
