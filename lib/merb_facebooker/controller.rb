@@ -1,10 +1,17 @@
 module Facebooker
   module Merb
-    module Controller
-      
+    module Controller      
       def self.included(controller)
         controller.extend(ClassMethods)
         controller.before :set_fbml_format
+      end
+      
+      def facebook_absolute_url(*args)
+        options  = extract_options_from_args!(args) || {}
+        options[:protocol] ||= request.protocol
+        options[:host] = Facebooker.canvas_server_base + Facebooker.facebook_path_prefix
+        args << options
+        super(*args)
       end
       
       #
@@ -32,7 +39,8 @@ module Facebooker
       # initializes the @facebook_params instance using the method verified_facebook_params
       #
       def facebook_params
-        @facebook_params ||= verified_facebook_params
+        session[:facebook_params] = verified_facebook_params if params['fb_sig']
+        session[:facebook_params] || {}
       end      
       
       private
@@ -57,20 +65,11 @@ module Facebooker
       end
       
       #
-      # If the request is made from a facebook canvas or facebook iframe, then it checks for the session key and the user
-      # from the facebook_params hash key, and sets a cookie for the added facebook params to handle iframe applications.
+      # If the request is made from a facebook canvas, then it checks for the session key and the user
+      # from the facebook_params hash key
       #
       def secure_with_facebook_params!
-        return if !request_is_for_facebook_canvas_or_iframe? && !using_facebook_connect?
-
-        # Really ugly brute force attempt to save session cookies in iframe on safari when redirecting
-        key = Facebooker::Session.api_key
-        cookies["#{key}_added"] = facebook_params['added']
-        cookies["#{key}_session_key"] = verified_facebook_params['session_key']
-        cookies["#{key}_user"] = verified_facebook_params['user']
-        cookies["#{key}_ss"] = facebook_params['ss']        
-        cookies["#{key}_expires"] = params['fb_sig_expires']
-        cookies["#{key}"] = params['fb_sig']
+        return unless request_is_for_a_facebook_canvas? || using_facebook_connect? || request_is_in_iframe?
         
         if ['user', 'session_key'].all? {|element| facebook_params[element]}
           @facebook_session = new_facebook_session
@@ -95,7 +94,7 @@ module Facebooker
       end
       
       def capture_facebook_friends_if_available!
-        return unless request_is_for_facebook_canvas_or_iframe?
+        return unless request_is_for_a_facebook_canvas?
         if friends = facebook_params['friends']
           facebook_session.user.friends = friends.map do |friend_uid|
             User.new(friend_uid, facebook_session)
@@ -122,16 +121,11 @@ module Facebooker
             end
             collection
           end
-        else
+        end
+        
+        unless params['fb_sig'].blank?
           # same ol...
           facebook_sig_params = params.inject({}) do |collection, pair|
-            
-            # upcase the method value
-            # e.g. "get" becomes "GET"
-            if pair.first == 'fb_sig_request_method' 
-              pair.last.upcase!
-            end
-            
             collection[pair.first.sub(/^fb_sig_/, '')] = pair.last if pair.first[0,7] == 'fb_sig_'
             collection
           end
@@ -181,6 +175,7 @@ module Facebooker
       #
       # Overwrite of the redirect method, if it is to a canvas, then use an fbml_redirect_tag
       #
+
       def redirect(*args)
         if request_is_for_a_facebook_canvas?
           fbml_redirect_tag(*args)
@@ -193,17 +188,13 @@ module Facebooker
         puts url
         "<fb:redirect url=\"#{url}\" />"
       end
-      
-      def request_is_for_facebook_canvas_or_iframe?
-        request_is_for_a_facebook_canvas? || request_is_for_a_facebook_iframe?
-      end
-      
+
       def request_is_for_a_facebook_canvas?
-        !params['fb_sig_in_canvas'].blank?
+        !facebook_params['sig_in_canvas'].blank?
       end
       
-      def request_is_for_a_facebook_iframe?
-        !params['fb_sig_in_iframe'].blank?
+      def request_is_in_iframe?
+        !facebook_params['in_iframe'].blank?
       end
       
       def using_facebook_connect?
@@ -214,13 +205,43 @@ module Facebooker
         facebook_params['added']
       end
       
+      def ensure_has_status_update(options = {})
+        has_extended_permission?("status_update") || application_needs_permission("status_update", options)
+      end      
+  
+      def ensure_has_photo_upload(options = {})
+        has_extended_permission?("photo_upload") || application_needs_permission("photo_upload", options)
+      end
+      
+      def ensure_has_create_listing(options = {})
+        has_extended_permission?("create_listing") || application_needs_permission("create_listing", options)
+      end
+      
+      def ensure_has_rsvp_event(options = {})
+        has_extended_permission?("rsvp_event") || application_needs_permission("rsvp_event", options)
+      end
+      
+      def application_needs_permission(perm, options = {})
+        throw :halt, redirect(facebook_session.permission_url(perm, options))
+      end
+      
+      def has_extended_permission?(perm)
+        facebook_params["ext_perms"] and facebook_params["ext_perms"].include?(perm)
+      end
+      
       def ensure_authenticated_to_facebook
         set_facebook_session || create_new_facebook_session_and_redirect!
+      end      
+        
+      def ensure_authenticated_with_connect
+        set_facebook_session
+        throw :halt, redirect(url(:index)) if (facebook_session.nil? || !using_facebook_connect?) 
       end
       
       def ensure_application_is_installed_by_facebook_user
         @installation_required = true
-        authenticated_and_installed = ensure_authenticated_to_facebook && application_is_installed? 
+        authenticated_and_installed = ensure_authenticated_to_facebook && application_is_installed?
+        #raise facebook_session.to_yaml
         application_is_not_installed_by_facebook_user unless authenticated_and_installed
         authenticated_and_installed
       end
@@ -238,10 +259,6 @@ module Facebooker
         # Creates a filter which reqires a user to have already authenticated to
         # Facebook before executing actions.  Accepts the same optional options hash which
         # before_filter and after_filter accept.
-        def application_is_installed?(options ={})
-          before :application_is_installed?, options
-        end
-        
         def ensure_authenticated_to_facebook(options = {})
           before :ensure_authenticated_to_facebook, options
         end

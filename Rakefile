@@ -3,7 +3,7 @@ require 'rake/gempackagetask'
 
 PLUGIN = "merb_facebooker"
 NAME = "merb_facebooker"
-VERSION = "0.0.2"
+VERSION = "0.0.4"
 AUTHOR = "Chris Van Pelt"
 EMAIL = "vanpelt@doloreslabs.com"
 HOMEPAGE = "http://merb-plugins.rubyforge.org/merb_facebooker/"
@@ -24,7 +24,7 @@ spec = Gem::Specification.new do |s|
   s.add_dependency('facebooker')
   s.require_path = 'lib'
   s.autorequire = PLUGIN
-  s.files = %w(LICENSE README Rakefile TODO) + Dir.glob("{lib,specs}/**/*")
+  s.files = %w(LICENSE README Rakefile TODO) + Dir.glob("{lib,specs,templates}/**/*") 
 end
 
 Rake::GemPackageTask.new(spec) do |pkg|
